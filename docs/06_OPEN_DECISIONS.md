@@ -26,3 +26,30 @@ The items below are explicitly unresolved. Codex should propose options and ask 
 - Separate Project Manager versioning; public KCF SDK contracts govern compatibility.
 - Three-Element UGV02-like fixture before full project import.
 - Existing KCF Core APIs remain unchanged; no IDE/extension.
+
+## MVP decisions implemented — 2026-11-27
+
+The user's first-integration instruction authorizes reasonable implementation decisions without per-feature approval. The historical planning questions above are retained as rationale; the following choices are now implemented in this repository.
+
+| Topic | MVP decision |
+| --- | --- |
+| CLI namespace | Separate `kcf-project`; optional `kcf-project-manager` GUI. Never installs or dispatches `kcf`. |
+| Model | `kcf.project.json`, schema integer 1; UUID project/Element IDs, explicit membership and typed runtime settings. nlohmann-json shared by Manager and generated apps. |
+| Runtime Hz | Generated bootstrap reads manifest through reserved bootstrap argv; calls public `SetLoopFrequency`. No user source rewrite. Default direct executable run uses 10 Hz. |
+| Supervisor | Thin generated C++ executable reads manifest and CMake artifact metadata; constructs public `ElementSpec`; uses `Bringup::Setup(name, specs)` and `Run`. |
+| env/workdir public API gap | `ElementSpec` has no per-child environment/workdir fields. Generated Element bootstrap applies them before `ProcessRuntime::Run`; no Core API extension or private headers. Reserved `KCF_` env settings rejected. |
+| CMake authority | User-owned root CMakeLists includes managed `cmake/elements.cmake`. CMake `file(GENERATE)` plus `$<TARGET_FILE:target>` produces per-configuration metadata; this is the documented equivalent to File API for generated known targets. |
+| SDK compatibility | `find_package(KCF CONFIG REQUIRED)` and public exported targets; no version pin. Actually tested SDK versions are listed in implementation status, not inferred from source compatibility. |
+| File ownership | Exact baseline contents (stronger comparison than a noncryptographic hash), user path index, preview, staged replacement/exception rollback, incomplete-transaction refusal, advisory project/build locks. No unconditional overwrite, force mode or source deletion. |
+| Process ownership | Foreground CLI, asynchronous GUI worker, `posix_spawnp` structured argv. Stop signals only the direct owned PID; Bringup stops its own children. One Manager operation per project at a time. No background PID adoption. |
+| Configuration update | Settings-only patch command; generated manifest is managed. Direct manual manifest edits are readable/validatable but conflict with regeneration until explicitly reconciled. |
+| Native builds | Generator output needs installed KCF + nlohmann-json, never Qt or the Manager executable/library. CMake presets have no SDK/checkout-specific path. |
+| Packaging | CMake install/export for source users. DEB/release pipeline deferred. |
+
+### Remaining decisions / limits
+
+- No arbitrary import, rename/refactoring, remove/exclude-with-source-removal command, remote deployment, or richer endpoint graph. `supervised=false` excludes an Element from Supervisor without deleting its source or build target.
+- Crash recovery is fail-closed and documented, not a multi-file filesystem transaction or automatic post-crash repair. No fsync durability guarantee. External IDE/CMake processes do not participate in advisory Manager locks.
+- Runtime Stop has no forced-kill deadline. A hung user Shutdown can delay termination; the Manager will not kill unrelated processes or claim it stopped an unresponsive process.
+- Only generated/manifest-declared executable targets are exposed by Manager build selection. Arbitrary extra CMake targets remain available through native CMake.
+- No claim of ABI/source compatibility across untested SDK releases. No changes to Core, Tools, IPC, Network, Supervisor lifecycle or Host Gateway are included.

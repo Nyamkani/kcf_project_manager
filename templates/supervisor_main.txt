@@ -1,0 +1,28 @@
+#include "runtime.hpp"
+#include <bringup/bringup.hpp>
+int main(int argc, char** argv) {
+    try {
+        if (argc != 3) throw std::runtime_error("Usage: supervisor PROJECT_JSON CMAKE_ARTIFACTS");
+        auto path = std::filesystem::absolute(argv[1]);
+        auto model = pm_runtime::project(path);
+        auto binaries = pm_runtime::artifacts(argv[2]);
+        std::vector<bringup::ElementSpec> specs;
+        for (const auto& e : model.at("elements")) {
+            if (!e.at("supervised").get<bool>()) continue;
+            pm_runtime::hz(e);
+            bringup::ElementSpec spec;
+            spec.name = e.at("name");
+            spec.executable = binaries.at(e.at("target").get<std::string>());
+            spec.arguments = {"--kcf-project", path.string(), "--kcf-element", e.at("id")};
+            for (const auto& arg : e.at("argv")) spec.arguments.push_back(arg.get<std::string>());
+            spec.startup_timeout_ms = e.at("startup_timeout_ms");
+            spec.health_timeout_ms = e.at("health_timeout_ms");
+            spec.shutdown_timeout_ms = e.at("shutdown_timeout_ms");
+            specs.push_back(std::move(spec));
+        }
+        bringup::Bringup supervisor;
+        int rc = supervisor.Setup(model.at("name").get<std::string>(), std::move(specs));
+        if (rc) { std::cerr << "Supervisor Setup failed: " << rc << '\n'; return 1; }
+        return supervisor.Run() == 0 ? 0 : 1;
+    } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 2; }
+}

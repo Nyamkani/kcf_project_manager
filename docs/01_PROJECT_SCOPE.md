@@ -1,5 +1,7 @@
 # 01 — Product Scope and User Experience
 
+> Update 2026-11-27: MVP implementation is now present. This document retains the original requirements; see [implementation status](08_IMPLEMENTATION_STATUS.md), [user guide](07_USER_GUIDE.md), and [resolved MVP decisions](06_OPEN_DECISIONS.md#mvp-decisions-implemented--2026-11-27). Historical “planning” statements below describe the baseline.
+
 **Status: planning, 2026-11-27.** Requirements here are agreed product intent; command names and file formats are examples, not final design.
 
 ## Motivation

@@ -1,5 +1,7 @@
 # 03 — CMake / Manifest / Build / Launch Contract
 
+> Update 2026-11-27: MVP implementation is now present. This document retains the original requirements; see [implementation status](08_IMPLEMENTATION_STATUS.md), [user guide](07_USER_GUIDE.md), and [resolved MVP decisions](06_OPEN_DECISIONS.md#mvp-decisions-implemented--2026-11-27). Historical “planning” statements below describe the baseline.
+
 ## The most important acceptance condition
 
 A generated application must be a **normal independent CMake project**. After generation, it **MUST build with VS Code's ordinary CMake Tools Configure/Build** (including the user's configured F7 shortcut) and native `cmake --build`, without installing, launching, or invoking Project Manager. No IDE extension, hidden build daemon, proprietary build graph or mandatory regenerate-before-build hook.

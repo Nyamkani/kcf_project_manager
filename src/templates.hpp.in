@@ -1,0 +1,6 @@
+#pragma once
+namespace kpm::templates {
+inline const char* runtime = R"KPM(@runtime@)KPM";
+inline const char* element_main = R"KPM(@element_main@)KPM";
+inline const char* supervisor_main = R"KPM(@supervisor_main@)KPM";
+}

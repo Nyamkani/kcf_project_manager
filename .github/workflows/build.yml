@@ -1,0 +1,15 @@
+name: Build and generator contract
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        gui: ['ON', 'OFF']
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build nlohmann-json3-dev qt6-base-dev
+      - run: cmake -S . -B build -G Ninja -DKCF_PM_GUI=${{ matrix.gui }} -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+# Real SDK tests are opt-in with KCF_PM_TEST_SDK; CI does not substitute a mock SDK.

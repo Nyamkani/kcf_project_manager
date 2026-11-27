@@ -1,0 +1,27 @@
+#include "@HEADER@"
+#include "runtime.hpp"
+#include <kcf/process/process_runtime.hpp>
+int main(int argc, char** argv) {
+    try {
+        double frequency = 10;
+        int offset = 1;
+        if (argc >= 5 && std::string(argv[1]) == "--kcf-project" && std::string(argv[3]) == "--kcf-element") {
+            auto path = std::filesystem::absolute(argv[2]);
+            auto model = pm_runtime::project(path);
+            bool found = false;
+            for (const auto& e : model.at("elements")) if (e.at("id") == argv[4]) {
+                frequency = pm_runtime::hz(e);
+                pm_runtime::environment(e, path.parent_path());
+                found = true;
+            }
+            if (!found) throw std::runtime_error("Element ID absent from manifest");
+            offset = 5;
+        }
+        @CLASS@ element(argc - offset, argv + offset);
+        kcf::ProcessRuntime runtime;
+        runtime.SetLoopFrequency(frequency);
+        int rc = runtime.Run(element);
+        if (rc) std::cerr << "ProcessRuntime failed: " << rc << '\n';
+        return rc == 0 ? 0 : 1;
+    } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 2; }
+}
