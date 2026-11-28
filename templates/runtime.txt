@@ -12,7 +12,8 @@ namespace fs = std::filesystem;
 inline Json read(const fs::path& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Cannot read " + path.string());
-    Json j; input >> j; return j;
+    try { Json j; input >> j; return j; }
+    catch (const std::exception& e) { throw std::runtime_error("Invalid JSON in " + path.string() + ": " + e.what()); }
 }
 inline Json project(const fs::path& path) {
     auto j = read(path);
@@ -41,8 +42,9 @@ inline std::map<std::string, std::string> artifacts(const fs::path& path) {
     std::map<std::string, std::string> result;
     std::string target, binary;
     while (std::getline(input, target)) {
-        if (!std::getline(input, binary) || !fs::is_regular_file(binary) || access(binary.c_str(), X_OK))
-            throw std::runtime_error("Missing executable for " + target + "; build the target first");
+        if (target.empty() || !std::getline(input, binary) || !fs::path(binary).is_absolute() ||
+            !fs::is_regular_file(binary) || access(binary.c_str(), X_OK))
+            throw std::runtime_error("Invalid/missing executable for " + target + " in " + path.string() + "; configure/build the target first");
         if (!result.emplace(target, binary).second) throw std::runtime_error("Duplicate target metadata");
     }
     return result;

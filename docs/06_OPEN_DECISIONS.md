@@ -53,3 +53,15 @@ The user's first-integration instruction authorizes reasonable implementation de
 - Runtime Stop has no forced-kill deadline. A hung user Shutdown can delay termination; the Manager will not kill unrelated processes or claim it stopped an unresponsive process.
 - Only generated/manifest-declared executable targets are exposed by Manager build selection. Arbitrary extra CMake targets remain available through native CMake.
 - No claim of ABI/source compatibility across untested SDK releases. No changes to Core, Tools, IPC, Network, Supervisor lifecycle or Host Gateway are included.
+
+## First-use UX extension — 2026-11-27
+
+- Supervisor no-argument defaults are bound by native CMake to the exact source manifest and `$<CONFIG>` artifacts path. No cwd/ancestor/glob/mtime fallback. Explicit two-path invocation remains supported. Project ID and current Supervisor executable identity are checked before Bringup.
+- Optional per-Element schema-v1 `build` object adds literal arrays for sources/includes/libraries/definitions/options and structured required package requests. Absent fields mean empty settings. Partial patches preserve omitted lists; arrays replace as a whole.
+- Generated target settings use PRIVATE scope and the existing managed CMake include. Root CMakeLists and all user source files retain ownership. Package requests are shared in directory scope; incompatible requests for the same package are rejected.
+- Upgrade is an explicit regenerate/settings preview and apply through existing conflict/rollback machinery. Opening old v1 projects does not rewrite them. Reusing an older generator after introducing new build settings is unsupported; native CMake remains independent.
+- CMake expressions, arbitrary commands, advanced scopes and package search policies remain user CMake responsibilities. Default Supervisor paths are build-tree paths, not relocatable deployment metadata.
+
+## Custom Module UX — 2026-11-28
+
+Custom Module is a selection/validation operation, not a new persistent manifest entity. Shared `custom_module_settings` and `configure_custom_module` validate existing explicit paths and merge into schema-v1 build source/include lists. CLI `add-module` applies under the project lock; the Qt dialog adds to the existing draft and Preview / Save Settings remains the apply step. Relative inputs must resolve inside the project; external inputs must be explicit absolute paths. Module/source directories bound the selection but never trigger a scan/glob. User sources and root CMake remain untouched; subprojects stay in user CMake.

@@ -1,5 +1,6 @@
 #include "kcf_project/project.hpp"
 #include "templates.hpp"
+#include "build_settings.hpp"
 #include <fstream>
 #include <sstream>
 #include <set>
@@ -48,6 +49,7 @@ Files render(const Json& m) {
     Files f;
     std::string project = m.at("name");
     std::string cm = "# Managed: edits are detected and preserved; extend ../CMakeLists.txt instead.\n";
+    cm += detail::build_packages(m);
     std::string metadata;
     for (const auto& e : m.at("elements")) {
         std::string n = e.at("name"), target = e.at("target"), cls = "Element_" + n;
@@ -56,10 +58,18 @@ Files render(const Json& m) {
         f.user[base + n + ".cpp"] = "#include \"" + header + "\"\n// User-owned: implement drivers, algorithms and lifecycle here.\n" + cls + "::" + cls + "(int argc, char** argv) { (void)argc; (void)argv; }\nint " + cls + "::Setup() { return 0; }\nint " + cls + "::Loop() { return 0; }\nvoid " + cls + "::Shutdown() {}\n";
         f.managed[base + "main.cpp"] = replace(replace(templates::element_main, "@HEADER@", header), "@CLASS@", cls);
         cm += "add_executable(" + target + " " + base + "main.cpp " + base + n + ".cpp)\ntarget_include_directories(" + target + " PRIVATE include generated)\ntarget_link_libraries(" + target + " PRIVATE KCF::core nlohmann_json::nlohmann_json)\n";
+        cm += detail::build_target(e);
         metadata += target + "\n$<TARGET_FILE:" + target + ">\n";
     }
     std::string supervisor = project + "_supervisor";
     cm += "add_executable(" + supervisor + " generated/supervisor.cpp)\ntarget_include_directories(" + supervisor + " PRIVATE generated)\ntarget_link_libraries(" + supervisor + " PRIVATE KCF::bringup nlohmann_json::nlohmann_json)\n";
+    // CMake binds defaults to this target's actual configuration. No cwd scan,
+    // guessed build directory or newest-file selection is needed at runtime.
+    cm += "target_compile_definitions(" + supervisor + " PRIVATE\n"
+          "  KPM_DEFAULT_MANIFEST=\"${CMAKE_CURRENT_SOURCE_DIR}/kcf.project.json\"\n"
+          "  KPM_DEFAULT_ARTIFACTS=\"${CMAKE_BINARY_DIR}/kcf-artifacts-$<CONFIG>.txt\"\n"
+          "  KPM_PROJECT_ID=\"" + m.at("id").get<std::string>() + "\"\n"
+          "  KPM_SUPERVISOR_TARGET=\"" + supervisor + "\")\n";
     for (const auto& e : m.at("elements")) cm += "add_dependencies(" + supervisor + " " + e.at("target").get<std::string>() + ")\n";
     metadata += supervisor + "\n$<TARGET_FILE:" + supervisor + ">\n";
     cm += "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/kcf-artifacts-$<CONFIG>.txt\" CONTENT \"" + metadata + "\")\nfile(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/kcf-source.txt\" CONTENT \"${CMAKE_SOURCE_DIR}\")\n";
@@ -172,6 +182,7 @@ void validate(const Json& m) {
         }
         auto cwd=e.at("workdir").get<std::string>(); require(!cwd.empty()&&plain(cwd),"Invalid working directory");
     }
+    detail::build_packages(m); // Validates optional v1 build fields and cross-Element package conflicts.
 }
 Json load(const fs::path& root) { root_ok(root); safe(root,"kcf.project.json"); auto m=read_json(root/"kcf.project.json");validate(m);return m; }
 Changes create(const fs::path& root,const std::string& n,bool preview) {
@@ -191,12 +202,30 @@ Changes add(const fs::path& root,const std::string& n,bool preview) {
 }
 Changes configure_element(const fs::path& root,const std::string& n,const Json& settings,bool preview) {
     Lock lock(root/".kcf-project.lock");auto m=load(root);require(settings.is_object(),"Settings must be a JSON object");
-    std::set<std::string> allowed{"hz","argv","env","workdir","supervised","startup_timeout_ms","health_timeout_ms","shutdown_timeout_ms"};
+    std::set<std::string> allowed{"hz","argv","env","workdir","supervised","startup_timeout_ms","health_timeout_ms","shutdown_timeout_ms","build"};
     for(auto it=settings.begin();it!=settings.end();++it) require(allowed.count(it.key()),"Unsupported setting: "+it.key());
-    for(auto& e:m["elements"]) if(e.at("name")==n) { e.update(settings);return apply(root,m,preview); }
+    for(auto& e:m["elements"]) if(e.at("name")==n) {
+        Json patch = settings;
+        if (patch.contains("build")) {
+            require(patch.at("build").is_object(), "build must be an object");
+            Json merged = e.value("build", Json::object());
+            merged.update(patch.at("build"));
+            patch["build"] = std::move(merged);
+        }
+        e.update(patch);return apply(root,m,preview);
+    }
     throw std::runtime_error("Unknown Element: "+n);
 }
 Changes regenerate(const fs::path& root,bool preview) { Lock lock(root/".kcf-project.lock");return apply(root,load(root),preview); }
+Changes configure_custom_module(const fs::path& root, const std::string& n, const Json& request, bool preview) {
+    Lock lock(root/".kcf-project.lock");
+    auto model = load(root);
+    for (auto& e : model["elements"]) if (e.at("name") == n) {
+        e["build"] = custom_module_settings(root, element_build_settings(e), request, n);
+        return apply(root, model, preview);
+    }
+    throw std::runtime_error("Unknown Element: " + n);
+}
 std::string tree(const fs::path& root) {
     Lock lock(root/".kcf-project.lock");auto m=load(root);std::ostringstream out;
     out<<m.at("name").get<std::string>()<<" [design-time; no observed runtime state]\n  Supervisor: "<<m.at("name").get<std::string>()<<"_supervisor\n";

@@ -100,7 +100,74 @@ with tempfile.TemporaryDirectory(prefix='kcf-pm-contract-') as tmp:
     manifest.write_text(json.dumps(model))
     invoke('validate', root, ok=False)
     manifest.write_text(saved)
+    # Optional v1 build settings: typed validation, merge semantics, safe literals.
+    original_root = (root/'CMakeLists.txt').read_bytes()
+    build_settings = {
+        'sources': ['extra source.cpp'], 'include_directories': ['include dir'],
+        'packages': [{'name': 'Threads', 'mode': 'module'}],
+        'link_libraries': ['Threads::Threads'], 'compile_definitions': ['MESSAGE="hello world"'],
+        'compile_options': ['-Wall'], 'link_options': ['-Wl,--as-needed']}
+    settings.write_text(json.dumps({'build': build_settings}))
+    before = hashes(root)
+    invoke('set', root, 'driver', settings, '--dry-run')
+    assert hashes(root) == before
+    invoke('set', root, 'driver', settings)
+    assert (root/'CMakeLists.txt').read_bytes() == original_root
+    assert source.read_bytes() == contents
+    cmake = (root/'cmake/elements.cmake').read_text()
+    assert 'target_sources(fixture_driver PRIVATE' in cmake
+    assert 'find_package([[Threads]] MODULE REQUIRED)' in cmake
+    assert 'target_link_options(fixture_driver PRIVATE' in cmake
+    settings.write_text(json.dumps({'build': {'compile_options': []}}))
+    invoke('set', root, 'driver', settings)
+    configured = json.loads(manifest.read_text())['elements'][0]['build']
+    assert configured['sources'] == build_settings['sources'] and configured['compile_options'] == []
+    assert 'No changes' in invoke('regenerate', root)
+    for bad in [None, [], {'sources': 'source.cpp'}, {'sources': [4]},
+                {'sources': ['${CMAKE_SOURCE_DIR}/x.cpp']}, {'link_libraries': ['a;b']},
+                {'compile_definitions': ['-DVALUE=1']}, {'compile_options': ['PRIVATE']},
+                {'packages': ['Threads']}, {'packages': [{'name': 'Threads', 'typo': True}]},
+                {'packages': [{'name': 'Threads', 'version': '1;2'}]},
+                {'packages': [{'name': 'Threads', 'components': ['CONFIG']}]},
+                {'packages': [{'name': 'Threads', 'components': ['NO_CMAKE_PATH']}]},
+                {'packages': [{'name': 'Threads', 'components': ['OPTIONAL']}]},
+                {'packages': [{'name': 'Threads', 'mode': 'invalid'}]}, {'typo': []}]:
+        before = hashes(root)
+        settings.write_text(json.dumps({'build': bad}))
+        invoke('set', root, 'driver', settings, ok=False)
+        assert hashes(root) == before
+    settings.write_text(json.dumps({'build': {'packages': [{'name': 'Threads', 'mode': 'config'}]}}))
+    before = hashes(root)
+    assert 'conflicting find_package' in invoke('set', root, 'motion_controller', settings, ok=False)
+    assert hashes(root) == before
+
+    # Load a genuine old generator snapshot, including its exact ownership baseline.
+    legacy = base/'legacy'
+    fixture = json.loads((pathlib.Path(__file__).parent/'fixtures/schema1-project.json').read_text())
+    for path, content in fixture['files'].items():
+        dest = legacy/path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content)
+    user_cpp = legacy/'src/driver/driver.cpp'
+    user_cpp.write_text(user_cpp.read_text() + '\n// legacy user edit\n')
+    user_cmake = legacy/'CMakeLists.txt'
+    user_cmake.write_text(user_cmake.read_text() + '\n# legacy CMake customization\n')
+    old_user = (user_cpp.read_bytes(), user_cmake.read_bytes())
+    old_manifest = (legacy/'kcf.project.json').read_bytes()
+    before = hashes(legacy)
+    invoke('validate', legacy)
+    invoke('tree', legacy)
+    invoke('regenerate', legacy, '--dry-run')
+    assert hashes(legacy) == before
+    invoke('regenerate', legacy)
+    assert (legacy/'kcf.project.json').read_bytes() == old_manifest
+    assert (user_cpp.read_bytes(), user_cmake.read_bytes()) == old_user
+    assert 'No changes' in invoke('regenerate', legacy)
+    settings.write_text(json.dumps({'build': {'compile_definitions': ['MIGRATED=1']}}))
+    invoke('set', legacy, 'driver', settings)
+    assert json.loads((legacy/'kcf.project.json').read_text())['schema'] == 1
+    assert (user_cpp.read_bytes(), user_cmake.read_bytes()) == old_user
     transaction = root / '.kcf/transaction'
     transaction.mkdir()
     assert 'Incomplete transaction' in invoke('regenerate', root, ok=False)
-print('PASS: creation, 3 Elements, idempotency, preview, preservation, validation, collisions, symlinks, locks, incomplete transaction')
+print('PASS: legacy v1 migration, build settings, creation, 3 Elements, idempotency, preview, preservation, validation, collisions, symlinks, locks, incomplete transaction')

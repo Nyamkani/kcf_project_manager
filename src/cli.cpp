@@ -10,6 +10,7 @@ const char* help = R"(KCF Project Manager 0.1.0
   kcf-project create DIRECTORY NAME [--dry-run]
   kcf-project add PROJECT ELEMENT [--dry-run]
   kcf-project set PROJECT ELEMENT SETTINGS_JSON_FILE [--dry-run]
+  kcf-project add-module PROJECT ELEMENT MODULE_JSON_FILE [--dry-run]
   kcf-project regenerate PROJECT [--dry-run]
   kcf-project tree PROJECT
   kcf-project validate PROJECT
@@ -18,7 +19,13 @@ const char* help = R"(KCF Project Manager 0.1.0
   kcf-project launch PROJECT [--build-dir DIR] [--config Debug|Release]
 Run/launch remain in the foreground. Ctrl+C stops only the owned child.
 Settings JSON keys: hz, argv (array), env (object), workdir, supervised,
-startup_timeout_ms, health_timeout_ms, shutdown_timeout_ms.
+startup_timeout_ms, health_timeout_ms, shutdown_timeout_ms, build (object).
+Build keys: sources, include_directories, packages, link_libraries,
+compile_definitions, compile_options, link_options (all arrays).
+Packages: {"name":"Threads","mode":"auto","version":"","components":[]}.
+Build patches preserve omitted keys; use [] to clear a list.
+Module JSON: module_directory, source_directory, include_directories, sources.
+All relative paths are project-root relative. External paths must be absolute.
 )";
 }
 int main(int argc,char** argv) {
@@ -30,7 +37,7 @@ int main(int argc,char** argv) {
             else if(a.rfind("--",0)==0){if(a!="--target"&&a!="--build-dir"&&a!="--config"&&a!="--prefix")throw std::runtime_error("Unknown option: "+a);if(++i==argc)throw std::runtime_error("Missing option value");if(!options.emplace(a,argv[i]).second)throw std::runtime_error("Duplicate option: "+a);}
             else positional.push_back(a);}
         auto count=[&](size_t n){if(positional.size()!=n)throw std::runtime_error("Wrong arguments; use --help");};
-        bool mutation=command=="create"||command=="add"||command=="set"||command=="regenerate";
+        bool mutation=command=="create"||command=="add"||command=="set"||command=="regenerate"||command=="add-module";
         bool operation=command=="build"||command=="run"||command=="launch";
         if(preview&&!mutation)throw std::runtime_error("--dry-run is only valid for generation/settings");
         if(!options.empty()&&!operation)throw std::runtime_error("Build/run options are not valid here");
@@ -38,6 +45,7 @@ int main(int argc,char** argv) {
         if(command=="create"){count(2);std::cout<<kpm::diff(kpm::create(positional[0],positional[1],preview));}
         else if(command=="add"){count(2);std::cout<<kpm::diff(kpm::add(positional[0],positional[1],preview));}
         else if(command=="set"){count(3);std::cout<<kpm::diff(kpm::configure_element(positional[0],positional[1],kpm::read_json(positional[2]),preview));}
+        else if(command=="add-module"){count(3);std::cout<<kpm::diff(kpm::configure_custom_module(positional[0],positional[1],kpm::read_json(positional[2]),preview));}
         else if(command=="regenerate"){count(1);std::cout<<kpm::diff(kpm::regenerate(positional[0],preview));}
         else if(command=="tree"){count(1);std::cout<<kpm::tree(positional[0]);}
         else if(command=="validate"){count(1);kpm::load(positional[0]);std::cout<<"Valid schema 1 project\n";}

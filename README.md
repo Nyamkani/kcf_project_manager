@@ -44,7 +44,7 @@ cmake --build /tmp/ugv02/build -j2
 cmake --build /tmp/ugv02/build --target ugv02_driver
 ```
 
-`src/driver/driver.cpp`와 `include/ugv02/driver.hpp`에서 구현합니다. 설정은 GUI의 Preview / Save Settings 또는 CLI `set`으로 변경합니다. 생성 관리 파일에 수동 수정이 있으면 덮어쓰지 않고 중단합니다.
+`src/driver/driver.cpp`와 `include/ugv02/driver.hpp`에서 구현합니다. 런타임 및 Element별 source/include/package/link/compile 설정은 GUI의 Runtime / CMake Build 탭 또는 CLI `set`으로 변경합니다. 생성 관리 파일에 수동 수정이 있으면 덮어쓰지 않고 중단합니다.
 
 ## 검증과 문서
 
@@ -62,3 +62,7 @@ ctest --test-dir build --output-on-failure
 - 초기 요구사항: [기획 요약](docs/00_기획_요약_KO.md), [범위](docs/01_PROJECT_SCOPE.md), [아키텍처](docs/02_ARCHITECTURE_AND_COMPATIBILITY.md), [빌드/실행 계약](docs/03_BUILD_AND_LAUNCH_CONTRACT.md), [UGV02 사례](docs/04_UGV02_CASE_STUDY.md), [구현 계획](docs/05_CODEX_IMPLEMENTATION_PLAN.md).
 
 현재 고급 rename/remove/import, 패키지 배포, 원격 실행은 포함하지 않습니다. VS Code 실제 UI 조작과 OPI5+/UGV02 장치 검증은 자동 CMake/Qt 테스트와 별도로 구분합니다.
+
+생성된 Supervisor는 프로젝트 루트에서 `./build/ugv02_supervisor`로 직접 실행할 수 있습니다. 명시적 manifest/artifacts 인자도 지원합니다. 기존 프로젝트는 `kcf-project regenerate PROJECT --dry-run`으로 검토한 뒤 `regenerate`와 native CMake 재빌드를 수행하세요. [기존 v1 프로젝트 갱신과 빌드 설정](docs/07_USER_GUIDE.md#첫-실사용-ux-확장-기존-프로젝트-갱신)을 참조하세요.
+
+사용자 C++ 모듈은 GUI **CMake Build → Add Custom Module** 또는 CLI `add-module`로 등록합니다. 폴더를 자동 스캔하지 않고 선택한 실제 `.cpp`와 include 경로만 연결합니다. [Custom Module 사용법과 경로 정책](docs/07_USER_GUIDE.md#custom-module-등록--2026-11-28)을 참조하세요.

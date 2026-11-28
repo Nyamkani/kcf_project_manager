@@ -22,6 +22,11 @@ public:
 };
 Json read_json(const fs::path& path);
 void validate(const Json& model);
+// Schema v1: an absent build object means empty per-Element build settings.
+Json element_build_settings(const Json& element);
+// Validate explicitly selected module paths and merge into schema-v1 build lists.
+Json custom_module_settings(const fs::path& root, const Json& build, const Json& request, const std::string& element_name = {});
+Changes configure_custom_module(const fs::path& root, const std::string& element, const Json& request, bool preview = false);
 Json load(const fs::path& root);
 Changes create(const fs::path& root, const std::string& name, bool preview = false);
 Changes add(const fs::path& root, const std::string& name, bool preview = false);

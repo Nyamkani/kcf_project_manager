@@ -2,10 +2,18 @@
 #include <bringup/bringup.hpp>
 int main(int argc, char** argv) {
     try {
-        if (argc != 3) throw std::runtime_error("Usage: supervisor PROJECT_JSON CMAKE_ARTIFACTS");
-        auto path = std::filesystem::absolute(argv[1]);
+        if (argc != 1 && argc != 3)
+            throw std::runtime_error("Usage: supervisor [PROJECT_JSON CMAKE_ARTIFACTS] (provide both paths or neither)");
+        // Compiled by ordinary CMake; independent of the Manager and cwd.
+        auto path = std::filesystem::absolute(argc == 3 ? argv[1] : KPM_DEFAULT_MANIFEST);
+        auto metadata = std::filesystem::absolute(argc == 3 ? argv[2] : KPM_DEFAULT_ARTIFACTS);
         auto model = pm_runtime::project(path);
-        auto binaries = pm_runtime::artifacts(argv[2]);
+        if (model.at("id") != KPM_PROJECT_ID)
+            throw std::runtime_error("Manifest belongs to a different project: " + path.string());
+        auto binaries = pm_runtime::artifacts(metadata);
+        auto self = binaries.find(KPM_SUPERVISOR_TARGET);
+        if (self == binaries.end() || !std::filesystem::equivalent(self->second, "/proc/self/exe"))
+            throw std::runtime_error("Artifacts do not identify this Supervisor executable: " + metadata.string());
         std::vector<bringup::ElementSpec> specs;
         for (const auto& e : model.at("elements")) {
             if (!e.at("supervised").get<bool>()) continue;
